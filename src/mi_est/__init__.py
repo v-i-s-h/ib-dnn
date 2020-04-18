@@ -1,0 +1,1 @@
+from .binning import compute_mi as bin_compute_mi

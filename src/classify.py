@@ -15,6 +15,9 @@ import models, data
 import callbacks
 import utils
 
+# To avoid error from K.function([..., K.learning_phase()], [...])
+tf.compat.v1.disable_eager_execution()
+
 # Register train command and associated swicthes
 @cli.command()
 @click.option("--name", default="classify")
@@ -93,6 +96,15 @@ def train(build_model,      # build function from `models`
                     ]
             )
         ])
+        # compute MI
+        mi_estimator = callbacks.EstimateMI(dataset.load_split("test"),
+                                            monitor_layers = {
+                                                "quant_dense": lq.layers.QuantDense,
+                                                "batchnorm": tf.keras.layers.BatchNormalization,
+                                                "activation": tf.keras.layers.Activation
+                                            }
+                                        )
+        training_callbacks.extend([mi_estimator])
 
         # train the model
         train_log = model.fit(
@@ -104,7 +116,8 @@ def train(build_model,      # build function from `models`
                             initial_epoch=initial_epoch,
                             callbacks=training_callbacks
         )
-    
+
+        
     # Execute experiment
     ex.execute()
 
