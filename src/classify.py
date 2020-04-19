@@ -10,7 +10,6 @@ import larq as lq
 import click
 from zookeeper import cli, build_train
 
-from experiment import Experiment
 import models, data
 import callbacks
 import utils
@@ -21,17 +20,37 @@ tf.compat.v1.disable_eager_execution()
 # Register train command and associated swicthes
 @cli.command()
 @click.option("--name", default="classify")
-@click.option("--observer", default=None)
 @build_train()
 def train(build_model,      # build function from `models`
           dataset,          # dataset from `data`
           hparams,          # hyper parameters from `models`
           logdir,           # log directory to save results
-          name,             # name of the experiment - for sacred
-          observer):        # sacred observer for the experiment
+          name):            # name of the experiment
+
+    # make configuration of this experiment
+    config = {}
+    for (param, value) in hparams.items():
+        if not callable(value): # Filter out all non callable parameters
+            if type(value) is dict:
+                # If the hyper-parameter is specified as a dictionary,
+                # then unpack it with proper names
+                config[param] = {}
+                for(_param, _value) in value.items():
+                    if utils.is_jsonable(_value):
+                        config[param][_param] = _value
+                    else:
+                        config[param][_param] = _value.__name__
+            else:
+                if utils.is_jsonable(value):
+                    config[param] = value
+                else:
+                    config[param] = value.__name__
+    config['dataset'] = dataset.dataset_name
+    config['preprocess'] = type(dataset.preprocessing).__name__
+    config['model'] = build_model.__name__    
 
     # Check if the given directory already contains model
-    if os.path.exists(f"{logdir}/stats.json"):
+    if os.path.exists(f"{logdir}/config.json"):
         # then we will load the model weights
         model_dir = logdir
     else:
@@ -43,23 +62,12 @@ def train(build_model,      # build function from `models`
                                 build_model.__name__,
                                 datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
         os.makedirs(model_dir, exist_ok=True)
-    model_path = os.path.join(model_dir, "weights.h5")
+
+    # save current configuration
+    with open(os.path.join(model_dir, "config.json"), "w") as f:
+        json.dump(config, f, indent=2)
     
-    # check if any observers are added for experiment.
-    # if not, add a file_storage observer
-    if observer is None:
-        observer = f"file_storage={model_dir}"
-
-    # Create an experiment
-    ex = Experiment(name, 
-                    dataset, 
-                    build_model.__name__, 
-                    hparams, 
-                    observer)
-
-    # Main function to run experiment
-    @ex.main
-    def train(_run):
+    def train_model():
         # build model
         model = build_model(hparams, **dataset.preprocessing.kwargs)
 
@@ -78,6 +86,7 @@ def train(build_model,      # build function from `models`
         initial_epoch = 0
         if os.path.exists(os.path.join(model_dir, "stats.json")):
             with open(os.path.join(model_dir, "stats.json"), "r") as stats_file:
+                model_path = os.path.join(model_dir, "weights.h5")
                 initial_epoch = json.load(stats_file)["epoch"]
                 click.echo(f"Restoring model from {model_path} at epoch = {initial_epoch}")
                 model.load_weights(model_path)
@@ -87,27 +96,14 @@ def train(build_model,      # build function from `models`
         training_callbacks = [
             callbacks.SaveStats(model_dir=model_dir)
         ]
-        # send data to sacred experiment
-        training_callbacks.extend([
-            tf.keras.callbacks.LambdaCallback(
-                on_epoch_end=lambda epoch, logs:
-                    [
-                        ex.log_scalar(metric, value, epoch+1) for (metric, value) in logs.items()
-                    ]
-            )
-        ])
         # compute MI
         mi_estimator = callbacks.EstimateMI(dataset.load_split("test"),
-                                            monitor_layers = {
-                                                "quant_dense": lq.layers.QuantDense,
-                                                "batchnorm": tf.keras.layers.BatchNormalization,
-                                                "activation": tf.keras.layers.Activation
-                                            },
+                                            hparams.mi_layer_types,
                                             log_file=os.path.join(model_dir, "mi_data.json")
                                         )
         training_callbacks.extend([mi_estimator])
         # custom prgress bar
-        training_callbacks.extend([callbacks.ProgressBar(initial_epoch)])
+        training_callbacks.extend([callbacks.ProgressBar(initial_epoch, ["accuracy"])])
         
         # train the model
         train_log = model.fit(
@@ -121,8 +117,9 @@ def train(build_model,      # build function from `models`
                             verbose=0
         )
 
-    # # Execute experiment
-    ex.execute()
+        return train_log
+
+    train_log = train_model()    
 
 if __name__ == "__main__":
     cli()

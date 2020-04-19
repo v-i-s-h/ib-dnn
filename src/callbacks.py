@@ -10,21 +10,39 @@ import tensorflow_datasets as tfds
 
 from mi_est import bin_compute_mi
 
-class SaveStats(tf.keras.callbacks.LambdaCallback):
+class SaveStats(tf.keras.callbacks.Callback):
     """
         Callback for saving current model parameters and stats
     """
     def __init__(self, model_dir):
+        super(SaveStats, self).__init__()
+
         self.model_dir = model_dir
         self.stats_file = os.path.join(model_dir, "stats.json")
         self.weights_file = os.path.join(model_dir, "weights.h5")
+        self.metrics_file = os.path.join(model_dir, "metrics.json")
+
+    def on_train_begin(self, logs=None):
+        # build dictionary to log metrics
+        self.metrics = {}
+        if os.path.exists(self.metrics_file):
+            with open(self.metrics_file, "r") as f:
+                self.metrics = json.load(f)
+        else:
+            self.metrics['epoch'] = []
+            for metric in self.params['metrics']:
+                self.metrics[metric] = []
+                
+    def on_epoch_end(self, epoch, logs=None):
+        self.model.save_weights(self.weights_file)
+        with open(self.stats_file, "w") as f:
+            json.dump({"epoch": epoch + 1}, f)
         
-        def save_stats(epoch, logs=None):
-            self.model.save_weights(self.weights_file)
-            with open(self.stats_file, "w") as f:
-                json.dump({"epoch": epoch + 1}, f)
-        
-        super().__init__(on_epoch_end=save_stats)
+        self.metrics['epoch'].append(epoch)
+        for (metric, value) in logs.items():
+            self.metrics[metric].append(value.astype(float))
+        with open(self.metrics_file, "w") as f:
+            json.dump(self.metrics, f)
 
 
 class EstimateMI(tf.keras.callbacks.Callback):
@@ -117,14 +135,23 @@ class EstimateMI(tf.keras.callbacks.Callback):
                 # save this epoch MI data
                 # TODO: Incremental logging?
                 with open(self.log_file, "w") as f:
-                    json.dump(self.mi_data, f, indent=2)
+                    json.dump(self.mi_data, f)
 
 
 # Custom progress bar
 class ProgressBar(tf.keras.callbacks.Callback):
-    def __init__(self, initial=0):
+    """
+        Custom Progress bar for monitoring training progress
+    """
+    def __init__(self, initial=0, metrics=None):
+        """
+        Arguments:
+            initial     : epoch to which the progress bar needs to be set to.
+            metrics     : metrics from `logs` to display
+        """
         super(ProgressBar, self).__init__()
         self.initial = initial
+        self.log_metrics = metrics
 
     def on_train_begin(self, logs=None):
         self.epochs = self.params['epochs']
@@ -133,6 +160,8 @@ class ProgressBar(tf.keras.callbacks.Callback):
         self.epochbar = tqdm(initial=self.initial, 
                              total=self.epochs, 
                              unit="epoch")
+        if self.log_metrics is None:
+            self.log_metrics = self.params['metrics']
         
     def on_train_end(self, logs=None):
         self.epochbar.close()
@@ -151,7 +180,6 @@ class ProgressBar(tf.keras.callbacks.Callback):
         pass
 
     def format_metrics(self, logs):
-        metrics = self.params['metrics']
-        strings = ["{}: {:.3f}".format(metric, np.mean(logs[metric], axis=None)) for metric in metrics
+        strings = ["{}: {:.3f}".format(metric, np.mean(logs[metric], axis=None)) for metric in self.log_metrics
                    if metric in logs]
         return " ".join(strings)

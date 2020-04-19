@@ -40,3 +40,8 @@ class default(HParams):
     opt_param = dict(
         lr = 0.001
     )
+
+    # layers to monitor for MI
+    mi_layer_types = {
+        "activation": tf.keras.layers.Activation
+    }
