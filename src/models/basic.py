@@ -45,3 +45,14 @@ class default(HParams):
     mi_layer_types = {
         "activation": tf.keras.layers.Activation
     }
+
+@registry.register_hparams(fcn)
+class saxe2018iclr_mnist(default):
+    """
+        To reproduce results from 
+        Saxe, Andrew M., et al. "On the information bottleneck theory of deep learning." ICLR 2018
+    """
+    hidden_units = [1024, 20, 20, 20]
+
+    epochs = 10000
+    batch_size = 64
