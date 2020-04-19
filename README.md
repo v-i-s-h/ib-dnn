@@ -1,4 +1,4 @@
-# Information Bottleneck in Binary World
+# Information Bottleneck in deep neural networks
 
 ## Setup environment
 Following are the requirements. 
