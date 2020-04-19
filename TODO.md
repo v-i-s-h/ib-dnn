@@ -20,12 +20,17 @@
   * [ ] SwishSign
 
 ### 4. Effect of input value range
-* [ ] Input scaled in [0, 1]
+* [x] Input scaled in [0, 1]
 * [ ] Input scaler in [-1,  +1]
 
 ## Coding
-* [ ] Implement zookeeper experiment
-* [ ] Integrate sacred, with file logging as default
+### 1. Train script
+* [x] Implement zookeeper experiment
+* [x] Integrate sacred, with file logging as default
 * [ ] Optimizer state reload on loading experiments
 * [ ] Sacred MongodB integration
 * [ ] Custom callback to monitor progress?
+
+### 2. Results visualization
+* [ ] Notebook for viewing logged MI values
+* [ ] Plotly for visualization
