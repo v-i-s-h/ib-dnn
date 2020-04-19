@@ -7,3 +7,8 @@ from .tasks import ImageClassification
 class default(ImageClassification):
     def inputs(self, data):
         return super().inputs(data) / 255.0
+
+@registry.register_preprocess("mnist")
+class zerocenter(ImageClassification):
+    def inputs(self, data):
+        return super().inputs(data) / 127.5 - 1.0
