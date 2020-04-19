@@ -104,13 +104,13 @@ class EstimateMI(tf.keras.callbacks.Callback):
 
         if epoch % self.monitor_interval == 0:
             # Compute activation from each layer on test data
-            layer_act_dict = self.layer_act([self.x_test, 1.0])
+            layer_act_dict = self.layer_act([self.x_test, 0.0])
 
             for (layer_type, act_dict) in layer_act_dict.items():
                 for layer_name, act_value in act_dict.items():
                     mi_mx, mi_my = bin_compute_mi(self.label_idx, act_value, 0.5)
                     self.mi_data[layer_type][layer_name][epoch] = (mi_mx, mi_my)
-            
+
             if self.log_file:
                 # save this epoch MI data
                 # TODO: Incremental logging?

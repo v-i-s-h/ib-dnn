@@ -12,10 +12,11 @@ def fcn(hparams, input_shape, num_classes):
     x = tf.keras.layers.Flatten(name="flatten_layer")(input_layer)
     # 3. Create hidden layers
     for (h_idx, n_units) in enumerate(hparams.hidden_units):
-        x = tf.keras.layers.Dense(n_units, name="dense{:02d}".format(h_idx))(x)
-        x = tf.keras.layers.Activation(hparams.activation, name="act{:02d}".format(h_idx))(x)
+        x = tf.keras.layers.Dense(n_units, name="lin_{:02d}".format(h_idx))(x)
+        x = tf.keras.layers.Activation(hparams.activation, name="act_{:02d}".format(h_idx))(x)
     # 4. Output layer
-    output_layer = tf.keras.layers.Dense(num_classes, activation="softmax")(x)
+    x = tf.keras.layers.Dense(num_classes, name="lin_out")(x)
+    output_layer = tf.keras.layers.Activation("softmax", name="act_out")(x)
 
     # Return model object
     return tf.keras.models.Model(inputs=input_layer, 
