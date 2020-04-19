@@ -102,10 +102,11 @@ def train(build_model,      # build function from `models`
                                                 "quant_dense": lq.layers.QuantDense,
                                                 "batchnorm": tf.keras.layers.BatchNormalization,
                                                 "activation": tf.keras.layers.Activation
-                                            }
+                                            },
+                                            log_file=os.path.join(model_dir, "mi_data.json")
                                         )
         training_callbacks.extend([mi_estimator])
-
+        
         # train the model
         train_log = model.fit(
                             dataset.train_data(hparams.batch_size),
@@ -114,10 +115,10 @@ def train(build_model,      # build function from `models`
                             validation_data=dataset.validation_data(hparams.batch_size),
                             validation_steps=dataset.validation_examples // hparams.batch_size,
                             initial_epoch=initial_epoch,
-                            callbacks=training_callbacks
+                            callbacks=training_callbacks,
+                            verbose=1
         )
 
-        
     # Execute experiment
     ex.execute()
 
