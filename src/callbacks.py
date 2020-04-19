@@ -2,6 +2,8 @@
 
 import os, json
 import numpy as np
+from tqdm import tqdm 
+
 import tensorflow as tf
 from tensorflow.keras import backend as K
 import tensorflow_datasets as tfds
@@ -116,3 +118,37 @@ class EstimateMI(tf.keras.callbacks.Callback):
                 # TODO: Incremental logging?
                 with open(self.log_file, "w") as f:
                     json.dump(self.mi_data, f, indent=2)
+
+
+# Custom progress bar
+class ProgressBar(tf.keras.callbacks.Callback):
+    def __init__(self, initial=0):
+        super(ProgressBar, self).__init__()
+        self.initial = initial
+
+    def on_train_begin(self, logs=None):
+        self.epochs = self.params['epochs']
+        self.samples = self.params['samples']
+        # create progress bar
+        self.epochbar = tqdm(desc="Training", 
+                             initial=self.initial, 
+                             total=self.epochs, 
+                             ncols=80,
+                             unit="epoch")
+        # set at start
+        self.epochbar.update(0)
+
+    def on_train_end(self, logs=None):
+        pass
+
+    def on_epoch_begin(self, epoch, logs=None):
+        pass
+
+    def on_epoch_end(self, epoch, logs=None):
+        self.epochbar.update(1)
+
+    def on_batch_begin(self, batch, logs=None):
+        pass
+
+    def on_batch_begin(self, batch, logs=None):
+        pass

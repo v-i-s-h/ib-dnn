@@ -52,7 +52,7 @@ def train(build_model,      # build function from `models`
 
     # Create an experiment
     ex = Experiment(name, 
-                    dataset.dataset_name, 
+                    dataset, 
                     build_model.__name__, 
                     hparams, 
                     observer)
@@ -68,7 +68,7 @@ def train(build_model,      # build function from `models`
             optimizer=utils.make_optimizer(hparams.optimizer, 
                                                 hparams.opt_param),
             loss="categorical_crossentropy",
-            metrics=["categorical_accuracy", "accuracy"]
+            metrics=["categorical_accuracy"]
         )
 
         # print summary of created model
@@ -106,6 +106,8 @@ def train(build_model,      # build function from `models`
                                             log_file=os.path.join(model_dir, "mi_data.json")
                                         )
         training_callbacks.extend([mi_estimator])
+        # custom prgress bar
+        training_callbacks.extend([callbacks.ProgressBar(initial_epoch)])
         
         # train the model
         train_log = model.fit(
@@ -116,10 +118,10 @@ def train(build_model,      # build function from `models`
                             validation_steps=dataset.validation_examples // hparams.batch_size,
                             initial_epoch=initial_epoch,
                             callbacks=training_callbacks,
-                            verbose=1
+                            verbose=0
         )
 
-    # Execute experiment
+    # # Execute experiment
     ex.execute()
 
 if __name__ == "__main__":

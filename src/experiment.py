@@ -8,7 +8,7 @@ class Experiment(sacred.Experiment):
             Create a scared experiment with the given settings
             Options:
                 name    : Name of Experiment (string)
-                dataset : Dataset name (string)
+                dataset : Dataset object from zookeeper
                 model   : Model name (string)
                 hparams : Dictionary of hyper parameters
                 observer: Experiment Observer. 
@@ -31,7 +31,8 @@ class Experiment(sacred.Experiment):
                         ex_cfg[f"{param}:{_param}"] = _value
                 else:
                     ex_cfg[param] = value
-        ex_cfg["dataset"] = dataset
+        ex_cfg["dataset"] = dataset.dataset_name
+        ex_cfg["preprocess"] = type(dataset.preprocessing).__name__
         ex_cfg["model"] = model
         
         # To disable logging of output to screen
