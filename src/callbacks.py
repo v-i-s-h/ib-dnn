@@ -130,21 +130,18 @@ class ProgressBar(tf.keras.callbacks.Callback):
         self.epochs = self.params['epochs']
         self.samples = self.params['samples']
         # create progress bar
-        self.epochbar = tqdm(desc="Training", 
-                             initial=self.initial, 
+        self.epochbar = tqdm(initial=self.initial, 
                              total=self.epochs, 
-                             ncols=80,
                              unit="epoch")
-        # set at start
-        self.epochbar.update(0)
-
+        
     def on_train_end(self, logs=None):
-        pass
+        self.epochbar.close()
 
     def on_epoch_begin(self, epoch, logs=None):
         pass
 
     def on_epoch_end(self, epoch, logs=None):
+        self.epochbar.set_postfix_str(self.format_metrics(logs), refresh=False)
         self.epochbar.update(1)
 
     def on_batch_begin(self, batch, logs=None):
@@ -152,3 +149,9 @@ class ProgressBar(tf.keras.callbacks.Callback):
 
     def on_batch_begin(self, batch, logs=None):
         pass
+
+    def format_metrics(self, logs):
+        metrics = self.params['metrics']
+        strings = ["{}: {:.3f}".format(metric, np.mean(logs[metric], axis=None)) for metric in metrics
+                   if metric in logs]
+        return " ".join(strings)

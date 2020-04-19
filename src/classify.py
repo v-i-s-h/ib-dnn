@@ -68,7 +68,7 @@ def train(build_model,      # build function from `models`
             optimizer=utils.make_optimizer(hparams.optimizer, 
                                                 hparams.opt_param),
             loss="categorical_crossentropy",
-            metrics=["categorical_accuracy"]
+            metrics=["accuracy"]
         )
 
         # print summary of created model
