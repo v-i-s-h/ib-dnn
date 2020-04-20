@@ -15,7 +15,7 @@ import callbacks
 import utils
 
 # To avoid error from K.function([..., K.learning_phase()], [...])
-tf.compat.v1.disable_eager_execution()
+# tf.compat.v1.disable_eager_execution()
 
 # Register train command and associated swicthes
 @cli.command()
@@ -55,11 +55,11 @@ def train(build_model,      # build function from `models`
         model_dir = logdir
     else:
         # otherwise, create 
-        # location to save the model -- <logdir>/<name>/<dataset>/<model>/<timestamp>
+        # location to save the model -- <logdir>/<model>/<dataset>/<name>/<timestamp>
         model_dir = os.path.join(logdir,
-                                name,
-                                dataset.dataset_name,
                                 build_model.__name__,
+                                dataset.dataset_name,
+                                name,
                                 datetime.datetime.now().strftime("%Y%m%d%H%M%S"))
         os.makedirs(model_dir, exist_ok=True)
 
@@ -97,7 +97,7 @@ def train(build_model,      # build function from `models`
             callbacks.SaveStats(model_dir=model_dir)
         ]
         # compute MI
-        mi_estimator = callbacks.EstimateMI(dataset.load_split("test"),
+        mi_estimator = callbacks.EstimateMI(dataset,
                                             hparams.mi_layer_types,
                                             log_file=os.path.join(model_dir, "mi_data.json")
                                         )
@@ -116,6 +116,64 @@ def train(build_model,      # build function from `models`
                             callbacks=training_callbacks,
                             verbose=0
         )
+
+        # # ==================================================================================
+        # import numpy as np
+        # import matplotlib.pyplot as plt
+        # mi_data = mi_estimator.mi_data
+        # sm = plt.cm.ScalarMappable(cmap='gnuplot', norm=plt.Normalize(vmin=0, vmax=config['epochs']))
+        # sm._A = []
+
+        # # plot infoplane evolution
+        # n_layer_types = len(mi_data)
+        # fig, ax = plt.subplots(nrows=1, ncols=n_layer_types, figsize=(5*n_layer_types, 5))
+        # if n_layer_types == 1:
+        #     ax = [ax]
+        # ax = dict(zip(mi_data.keys(), ax))
+        # for layer_type, layer_data in mi_data.items():
+        #     for layer_name, mi_values in layer_data.items():
+        #         c = [sm.to_rgba(int(epoch)) for epoch in mi_values.keys()]
+                
+        #         mi = np.stack([mi_val for (_, mi_val) in mi_values.items()])
+        #         ax[layer_type].scatter(mi[:,0], mi[:,1], c=c)
+                
+        #     epochs = list(layer_data[next(iter(layer_data))].keys())
+        #     for epoch_idx in epochs:
+        #         x_data = []
+        #         y_data = []
+        #         for layer_name, mi_values in layer_data.items():
+        #             x_data.append(mi_values[epoch_idx][0])
+        #             y_data.append(mi_values[epoch_idx][1])
+        #         ax[layer_type].plot(x_data, y_data, c='k', alpha=0.1)
+            
+        #     ax[layer_type].set_title(layer_type)
+        #     ax[layer_type].grid()
+                
+        # cbaxes = fig.add_axes([1.0, 0.10, 0.05, 0.85])
+        # plt.colorbar(sm, label='Epoch', cax=cbaxes)
+        # plt.tight_layout()
+
+        # # plot layerwise
+        # for layer_type, layer_data in  mi_data.items():
+        #     if layer_data:
+        #         n_layers = len(layer_data)
+        #         fig, ax = plt.subplots(nrows=1, ncols=n_layers, figsize=(3*n_layers, 3))
+        #         ax = dict(zip(layer_data.keys(), ax))
+        #         for (layer_name, mi_values) in  layer_data.items():
+        #             c = [sm.to_rgba(int(epoch)) for epoch in mi_values.keys()]
+                    
+        #             mi = np.stack([mi_val for (_, mi_val) in mi_values.items()])
+        #             ax[layer_name].scatter(mi[:,0], mi[:,1], c=c)
+        #             ax[layer_name].set_title(layer_name)
+        #             ax[layer_name].set_xlabel("I(T;X)")
+        #             ax[layer_name].set_ylabel("I(T;Y)")
+        #             ax[layer_name].grid()
+        #         cbaxes = fig.add_axes([1.0, 0.1, 0.01, 0.80])
+        #         plt.colorbar(sm, label='Epoch', cax=cbaxes)
+        #         plt.tight_layout()
+
+        # plt.show()
+        # # ==================================================================================
 
         return train_log
 

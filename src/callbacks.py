@@ -65,11 +65,11 @@ class EstimateMI(tf.keras.callbacks.Callback):
         """
         super(EstimateMI, self).__init__(*args, **kwargs)
 
-        # extract data from tfds format and make them numpy array for easy use with 
-        # K.function(...) and mi comuputations
-        self.x_test = np.stack([sample["image"] for sample in tfds.as_numpy(dataset)])
-        self.y_test = np.stack([sample["label"] for sample in tfds.as_numpy(dataset)])   
-
+        self.dataset = dataset
+        
+        # load y-data for the computation for conditional entropy in MI
+        testset = self.dataset.load_split("test")
+        self.y_test = np.stack([sample["label"] for sample in tfds.as_numpy(testset)]) 
         self.label_idx = dict()
         for i in range(10):         # NUM OF CLASSES
             self.label_idx[i] = self.y_test == i
@@ -100,11 +100,22 @@ class EstimateMI(tf.keras.callbacks.Callback):
                     if layer.name not in self.mi_data[layer_type]: # if not reloaded
                         self.mi_data[layer_type].update({layer.name: {}})
 
+        # to build the layer wise activation model
+        self.layer_out_names = {}
+        self.layer_out_ops = []
+        for (layer_type, act_ops) in self.layer_act_op.items():
+            self.layer_out_names[layer_type] = list(act_ops.keys())
+            self.layer_out_ops.extend(list(act_ops.values()))
+
         # Build Keras function to compute activations from each layer
-        self.layer_act = K.function([self.inp, K.learning_phase()], self.layer_act_op)
+        self.layer_act = tf.keras.models.Model(inputs=self.inp, outputs=self.layer_out_ops)
     
     def on_train_end(self, logs={}):
-        pass
+        self.update_mi_data(self.params['epochs'])
+        if self.log_file:
+            # save MI data
+            with open(self.log_file, "w") as f:
+                json.dump(self.mi_data, f)
 
     def on_epoch_begin(self, epoch, logs={}):
         pass
@@ -123,19 +134,32 @@ class EstimateMI(tf.keras.callbacks.Callback):
             self.monitor_interval = 100
 
         if epoch % self.monitor_interval == 0:
-            # Compute activation from each layer on test data
-            layer_act_dict = self.layer_act([self.x_test, 0.0])
-
-            for (layer_type, act_dict) in layer_act_dict.items():
-                for layer_name, act_value in act_dict.items():
-                    mi_mx, mi_my = bin_compute_mi(self.label_idx, act_value, 0.5)
-                    self.mi_data[layer_type][layer_name][epoch] = (mi_mx, mi_my)
+            self.update_mi_data(epoch)
 
             if self.log_file:
                 # save this epoch MI data
                 # TODO: Incremental logging?
                 with open(self.log_file, "w") as f:
                     json.dump(self.mi_data, f)
+
+    def update_mi_data(self, epoch):
+        # Compute activation from each layer on test data
+        act = self.layer_act.predict(
+                                        self.dataset.test_data(self.dataset.test_examples),
+                                        steps=1
+                                    )
+        # pack it to layer_act_dict format
+        layer_act_dict = {}
+        count = 0
+        for layer_type, layer_names in self.layer_out_names.items():
+            l = len(layer_names)
+            layer_act_dict[layer_type] = dict(zip(layer_names, act[count:count+l]))
+            count += l
+        
+        for (layer_type, act_dict) in layer_act_dict.items():
+            for layer_name, act_value in act_dict.items():
+                mi_mx, mi_my = bin_compute_mi(self.label_idx, act_value, 0.5)
+                self.mi_data[layer_type][layer_name][epoch] = (mi_mx, mi_my)
 
 
 # Custom progress bar

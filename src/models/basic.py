@@ -38,7 +38,7 @@ class default(HParams):
     # Optimizer
     optimizer = "SGD"
     opt_param = dict(
-        lr = 0.001
+        learning_rate = 0.001
     )
 
     # layers to monitor for MI
