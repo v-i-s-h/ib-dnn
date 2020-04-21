@@ -68,17 +68,27 @@ class EstimateMI(tf.keras.callbacks.Callback):
         self.dataset = dataset
         
         # load y-data for the computation for conditional entropy in MI
-        testset = self.dataset.load_split("test")
-        self.y_test = np.stack([sample["label"] for sample in tfds.as_numpy(testset)]) 
-        self.label_idx = dict()
-        for i in range(10):         # NUM OF CLASSES
-            self.label_idx[i] = self.y_test == i
+        # test set
+        testset = self.dataset.load_split("test", shuffle=False)
+        y_test = np.stack([sample["label"] for sample in tfds.as_numpy(testset)]) 
+        self.test_label_idx = dict()
+        for i in range(self.dataset.info.features["label"].num_classes):
+            self.test_label_idx[i] = y_test == i
+        # train set
+        trainset = self.dataset.load_split("train", shuffle=False)
+        y_train = np.stack([sample["label"] for sample in tfds.as_numpy(trainset)]) 
+        self.train_label_idx = dict()
+        for i in range(self.dataset.info.features["label"].num_classes):
+            self.train_label_idx[i] = y_train == i
 
         self.monitor_interval = 1
         self.monitor_layers = monitor_layers.copy()
 
         # dictionary to save MI values for each epoch and layer type
-        self.mi_data = {layer_type: {} for (layer_type, _) in  self.monitor_layers.items()}
+        self.mi_data = { 
+                "train" :{layer_type: {} for (layer_type, _) in  self.monitor_layers.items()},
+                "test"  :{layer_type: {} for (layer_type, _) in  self.monitor_layers.items()}
+        }
         # dictionary of operations in tf graph corresponding to the layer outputs, for K.function
         self.layer_act_op = {layer_type: {} for (layer_type, _) in self.monitor_layers.items()}
 
@@ -97,8 +107,9 @@ class EstimateMI(tf.keras.callbacks.Callback):
             for layer in self.model.layers:
                 if isinstance(layer, layer_class):
                     self.layer_act_op[layer_type].update({layer.name: layer.output})
-                    if layer.name not in self.mi_data[layer_type]: # if not reloaded
-                        self.mi_data[layer_type].update({layer.name: {}})
+                    if layer.name not in self.mi_data["train"][layer_type]: # if not reloaded
+                        self.mi_data["train"][layer_type].update({layer.name: {}})
+                        self.mi_data["test"][layer_type].update({layer.name: {}})
 
         # to build the layer wise activation model
         self.layer_out_names = {}
@@ -155,11 +166,36 @@ class EstimateMI(tf.keras.callbacks.Callback):
             l = len(layer_names)
             layer_act_dict[layer_type] = dict(zip(layer_names, act[count:count+l]))
             count += l
-        
         for (layer_type, act_dict) in layer_act_dict.items():
             for layer_name, act_value in act_dict.items():
-                mi_mx, mi_my = bin_compute_mi(self.label_idx, act_value, 0.5)
-                self.mi_data[layer_type][layer_name][epoch] = (mi_mx, mi_my)
+                mi_mx, mi_my = bin_compute_mi(self.test_label_idx, act_value, 0.5)
+                self.mi_data["test"][layer_type][layer_name][epoch] = (mi_mx, mi_my)
+
+        
+        # Compute activation from each layer on train data
+        act = self.layer_act.predict(
+                                        self.extract_traindata(1000),
+                                        steps=self.dataset.train_examples // 1000
+                                    )
+        # pack it to layer_act_dict format
+        layer_act_dict = {}
+        count = 0
+        for layer_type, layer_names in self.layer_out_names.items():
+            l = len(layer_names)
+            layer_act_dict[layer_type] = dict(zip(layer_names, act[count:count+l]))
+            count += l
+        for (layer_type, act_dict) in layer_act_dict.items():
+            for layer_name, act_value in act_dict.items():
+                mi_mx, mi_my = bin_compute_mi(self.train_label_idx, act_value, 0.5)
+                self.mi_data["train"][layer_type][layer_name][epoch] = (mi_mx, mi_my) 
+
+    def extract_traindata(self, batch_size):
+        # create train dataset object without shuffling
+        train_dataset = self.dataset.maybe_cache(
+            self.dataset.load_split(self.dataset.train_split, shuffle=False), "train_ordered"
+        )
+        return self.dataset._get_eval_data(train_dataset, batch_size)
+
 
 
 # Custom progress bar
